@@ -20,7 +20,7 @@ class PipelineConfig:
     local_llm_timeout: int = 120
     bedrock_region: str = "us-east-1"
     bedrock_embed_model: str = "amazon.titan-embed-text-v2:0"
-    bedrock_chat_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    bedrock_chat_model: str = "global.anthropic.claude-sonnet-4-6"
     openai_chat_model: str = "gpt-4.1-mini"
     openai_api_key_env: str = "OPENAI_API_KEY"
     openai_base_url: str = "https://api.openai.com/v1/chat/completions"
