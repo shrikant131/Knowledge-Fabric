@@ -8,7 +8,7 @@ from typing import Optional
 import yaml
 from knowledge_fabric.config import PipelineConfig
 from knowledge_fabric.pipeline import KnowledgeFabricPipeline
-from knowledge_fabric.runtime_paths import manifests_dir, registry_status_path
+from knowledge_fabric.runtime_paths import manifests_dir, registry_status_path, root_path
 
 @dataclass
 class SourceStatus:
@@ -21,9 +21,10 @@ class SourceStatus:
 
 class ConnectorRegistry:
     def __init__(self, manifests_dir: str | None = None, status_path: str | None = None):
-        self.manifests_dir = Path(manifests_dir) if manifests_dir else manifests_dir_path()
+        # Resolve relative paths against the installation root, never cwd.
+        self.manifests_dir = root_path(manifests_dir) if manifests_dir else manifests_dir_default()
         self.manifests_dir.mkdir(parents=True, exist_ok=True)
-        self.status_path = Path(status_path) if status_path else registry_status_path()
+        self.status_path = root_path(status_path) if status_path else registry_status_path()
         self.status_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock=threading.Lock(); self._status=self._load_status()
     def list_sources(self):
@@ -63,11 +64,10 @@ class ConnectorRegistry:
     def all_status(self):
         with self._lock: return dict(self._status)
     def _load_status(self):
-        try: raw=json.loads(self.status_path.read_text()); return {sid:SourceStatus(**data) for sid,data in raw.items()}
+        try: raw=json.loads(self.status_path.read_text(encoding="utf-8")); return {sid:SourceStatus(**data) for sid,data in raw.items()}
         except Exception: return {}
     def _save_status(self):
-        tmp=self.status_path.with_suffix(self.status_path.suffix+'.tmp')
-        tmp.write_text(json.dumps({sid:asdict(s) for sid,s in self._status.items()},indent=2),encoding="utf-8"); tmp.replace(self.status_path)
+        tmp=self.status_path.with_suffix(self.status_path.suffix+'.tmp'); tmp.write_text(json.dumps({sid:asdict(s) for sid,s in self._status.items()},indent=2),encoding="utf-8"); tmp.replace(self.status_path)
 
-def manifests_dir_path():
+def manifests_dir_default():
     return manifests_dir()
