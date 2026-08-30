@@ -40,3 +40,6 @@ dist/
 build/
 *.egg-info/
 *.zip
+
+# Push separately via GitHub web UI if your token lacks 'workflow' scope
+.github/workflows/ci.yml
