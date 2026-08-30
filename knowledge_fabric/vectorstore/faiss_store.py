@@ -1,4 +1,4 @@
-"""Persistent local vector store with safe JSON + NumPy serialization.
+"""Persistent local vector store with safe UTF-8 JSON + NumPy serialization.
 
 No pickle is used for persisted application state. FAISS remains an optional
 in-memory accelerator; the portable source of truth is JSON metadata + NPZ
@@ -105,18 +105,21 @@ class FaissVectorStore:
             })
         tmp_meta = self.meta_path.with_suffix(".tmp")
         tmp_vec = self.vector_path.with_suffix(".tmp.npz")
-        tmp_meta.write_text(json.dumps({"version": 2, "dimension": self.dimension, "chunks": payload}, ensure_ascii=False))
+        # Explicit UTF-8 is required on Windows, where the process default is
+        # commonly cp1252 and GitHub repositories frequently contain Unicode.
+        tmp_meta.write_text(
+            json.dumps({"version": 2, "dimension": self.dimension, "chunks": payload}, ensure_ascii=False),
+            encoding="utf-8",
+        )
         np.savez_compressed(tmp_vec, vectors=self._vectors)
         tmp_meta.replace(self.meta_path)
         tmp_vec.replace(self.vector_path)
-        # Compatibility marker only; never executed or deserialized.
-        self.index_path.write_text("Knowledge Fabric vector index v2\n")
+        self.index_path.write_text("Knowledge Fabric vector index v2\n", encoding="utf-8")
 
     def load(self):
-        meta = json.loads(self.meta_path.read_text())
+        meta = json.loads(self.meta_path.read_text(encoding="utf-8"))
         if int(meta.get("dimension", self.dimension)) != self.dimension:
             raise ValueError("Vector index dimension does not match configured embedder")
-        from knowledge_fabric.types import Chunk
         self.chunks = [Chunk(**x) for x in meta.get("chunks", [])]
         with np.load(self.vector_path, allow_pickle=False) as data:
             self._vectors = np.asarray(data["vectors"], dtype="float32")
