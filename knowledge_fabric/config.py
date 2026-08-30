@@ -14,7 +14,10 @@ class PipelineConfig:
     embedder: str = "local"
     generator: str = "mock"
     llm_enabled: bool = False
-    llm_provider: str = "bedrock"  # bedrock | openai | mock
+    llm_provider: str = "bedrock"  # local | bedrock | openai | mock
+    local_llm_model: str = "llama3.2:3b"
+    local_llm_base_url: str = "http://127.0.0.1:11434"
+    local_llm_timeout: int = 120
     bedrock_region: str = "us-east-1"
     bedrock_embed_model: str = "amazon.titan-embed-text-v2:0"
     bedrock_chat_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
@@ -51,7 +54,7 @@ class PipelineConfig:
 
     @classmethod
     def from_yaml(cls, path: str) -> "PipelineConfig":
-        with open(path) as f: raw = yaml.safe_load(f) or {}
+        with open(path, encoding="utf-8") as f: raw = yaml.safe_load(f) or {}
         known = {k:v for k,v in raw.items() if k in cls.__dataclass_fields__}
         return cls(**known)
 
@@ -59,5 +62,5 @@ class PipelineConfig:
         return {k:getattr(self,k) for k in self.__dataclass_fields__}
 
     def effective_llm_enabled(self) -> bool:
-        if self.generator == "bedrock" or self.generator == "openai": return True
+        if self.generator in {"local", "bedrock", "openai"}: return True
         return bool(self.llm_enabled)
