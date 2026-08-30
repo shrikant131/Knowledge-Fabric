@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block content %}
+<div class="quick-wrap"><div class="hero"><div><div class="eyebrow">ZERO-CONFIG ONBOARDING</div><h2>Get started in minutes</h2><p>Choose one path. Knowledge Fabric handles ingestion, indexing and local retrieval automatically.</p></div><a class="button secondary" href="{{ url_for('playground') }}">Back to Playground</a></div>
+<div class="step-row"><span class="active">1 Choose source</span><span>2 Auto-index</span><span>3 Ask questions</span></div>
+<div class="quick-options">
+<section class="card option" id="demo"><div class="option-icon">🧪</div><h3>Try sample knowledge</h3><p>Best for a first look. Uses the included sample runbook and retry policy.</p><button onclick="demo()">Start instantly</button><div id="demo-status" class="muted"></div></section>
+<section class="card option" id="files"><div class="option-icon">📄</div><h3>Use local files</h3><p>Drop PDF, Markdown, text or supported code directly into the browser.</p><form enctype="multipart/form-data" onsubmit="files(event)"><label>Files<input name="files" type="file" multiple accept=".pdf,.md,.txt,.rst,.py,.java,.js,.ts,.go"></label><label>Or folder path<input name="root_path" value=""></label><button>Build knowledge base</button></form><div id="files-status" class="muted"></div></section>
+<section class="card option" id="github"><div class="option-icon">🔗</div><h3>Connect GitHub</h3><p>Public repositories work without a token. Import a repository and test code intelligence.</p><form onsubmit="github(event)"><label>Repository<input name="repo" placeholder="psf/requests" required></label><label>Branch / ref<input name="ref" value="main"></label><button>Import repository</button></form><div id="github-status" class="muted"></div></section>
+</div><div class="tip card"><b>LLM is optional.</b> Start locally with zero API keys. When ready, enable Bedrock or OpenAI from Admin → AI & Models.</div></div>
+<script>
+async function postForm(url,form,status){status.textContent='Building…';const r=await fetch(url,{method:'POST',body:new FormData(form)});const d=await r.json();if(!d.ok){status.textContent='Error: '+(d.error||'failed');return}status.textContent='✓ Ready — '+d.result.total_chunks+' chunks indexed';setTimeout(()=>location.href='/playground',600)}
+function demo(){const s=document.getElementById('demo-status');s.textContent='Loading sample knowledge…';fetch('/quick-start/demo',{method:'POST'}).then(r=>r.json()).then(d=>{if(!d.ok){s.textContent='Error: '+d.error;return}s.textContent='✓ Ready — '+d.result.total_chunks+' chunks indexed';setTimeout(()=>location.href='/playground',500)})}
+function files(e){e.preventDefault();postForm('/quick-start/files',e.target,document.getElementById('files-status'))}
+function github(e){e.preventDefault();postForm('/quick-start/github',e.target,document.getElementById('github-status'))}
+</script>
+{% endblock %}

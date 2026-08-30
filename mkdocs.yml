@@ -1,0 +1,58 @@
+site_name: Knowledge Fabric
+site_description: Local-first enterprise knowledge and agent platform
+nav:
+  - Home: index.md
+  - Tutorials:
+      - 5-minute Quickstart: tutorials/quickstart.md
+      - First Knowledge Workflow: tutorials/first-knowledge-workflow.md
+  - How-to Guides:
+      - Enable LLM: how-to/enable-llm.md
+      - Add a Source: how-to/add-source.md
+      - Add a Connector: how-to/add-connector.md
+      - Add an Agent Tool: how-to/add-agent-tool.md
+      - Add an LLM Provider: how-to/add-llm-provider.md
+      - Tune RAG: how-to/tune-rag.md
+  - Reference:
+      - Configuration: reference/configuration.md
+      - API: reference/api.md
+      - CLI: reference/cli.md
+      - Agent Tools: reference/agent-tools.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Ingestion: architecture/ingestion.md
+      - Retrieval: architecture/retrieval.md
+      - Agent: architecture/agent.md
+      - Security: architecture/security.md
+      - Evaluation: architecture/evaluation.md
+  - Operations:
+      - Deployment: operations/deployment.md
+      - Docker: operations/docker.md
+      - Monitoring: operations/monitoring.md
+      - Troubleshooting: operations/troubleshooting.md
+      - Runbook: operations/runbook.md
+  - Security:
+      - Security Model: security/security-model.md
+      - Access Control: security/access-control.md
+      - Secrets: security/secrets.md
+  - Examples:
+      - Local RAG: examples/local-rag.md
+      - Bedrock: examples/bedrock.md
+      - Code Intelligence: examples/code-intelligence.md
+      - Multi-source Agent: examples/multi-source-agent.md
+  - Decisions:
+      - Local-first: decisions/ADR-001-local-first.md
+      - Hybrid Retrieval: decisions/ADR-002-hybrid-retrieval.md
+      - Provider Abstraction: decisions/ADR-003-provider-abstraction.md
+  - Contributing: CONTRIBUTING.md
+  - Changelog: CHANGELOG.md
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences

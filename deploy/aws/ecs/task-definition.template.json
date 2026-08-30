@@ -1,0 +1,14 @@
+{
+  "family": "knowledge-fabric",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024", "memory": "2048",
+  "containerDefinitions": [{
+    "name": "knowledge-fabric", "image": "ACCOUNT.dkr.ecr.REGION.amazonaws.com/knowledge-fabric:latest",
+    "essential": true,
+    "portMappings": [{"containerPort": 8080, "protocol": "tcp"}],
+    "environment": [{"name":"KF_HOST","value":"0.0.0.0"},{"name":"KF_PORT","value":"8080"},{"name":"KF_AUTO_BOOTSTRAP","value":"0"}],
+    "secrets": [],
+    "healthCheck": {"command":["CMD-SHELL","python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health', timeout=3)\""],"interval":30,"timeout":5,"retries":3,"startPeriod":30}
+  }]
+}

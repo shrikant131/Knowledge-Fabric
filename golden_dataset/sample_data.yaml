@@ -1,0 +1,25 @@
+- id: retry_policy_basic
+  question: "How does the retry and backoff policy work?"
+  relevant_item_ids:
+    - "runbook.md"
+    - "retry_policy.py"
+  min_groundedness: 0.3
+
+- id: escalation_policy
+  question: "Who should be paged if a connector keeps failing?"
+  relevant_item_ids:
+    - "runbook.md"
+  min_groundedness: 0.2
+
+- id: dead_letter_queue
+  question: "What happens to events after retries are exhausted?"
+  relevant_item_ids:
+    - "runbook.md"
+    - "retry_policy.py"
+  min_groundedness: 0.2
+
+- id: get_user_function
+  question: "What does the get_user_by_id function do?"
+  relevant_item_ids:
+    - "retry_policy.py"
+  min_groundedness: 0.2

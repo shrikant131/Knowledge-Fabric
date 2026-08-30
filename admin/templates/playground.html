@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block content %}
+<div class="playground-shell">
+  <div class="hero"><div><div class="eyebrow">KNOWLEDGE FABRIC</div><h2>Playground</h2><p>Start with sample knowledge, local files, or a public GitHub repository. No LLM key is required.</p></div><div class="actions"><a class="button secondary" href="{{ url_for('admin_console') }}">Admin Console</a><a class="button secondary" href="{{ url_for('quick_start') }}">Quick Start</a></div></div>
+  <div class="quick-cards">
+    <button class="quick-card" onclick="demo()"><b>🧪 Try Sample Knowledge</b><small>Instant demo. Local mode. No credentials.</small></button>
+    <button class="quick-card" onclick="location.href='{{ url_for('quick_start') }}#files'"><b>📄 Add Files</b><small>Index a local folder and start asking questions.</small></button>
+    <button class="quick-card" onclick="location.href='{{ url_for('quick_start') }}#github'"><b>🔗 Connect GitHub</b><small>Import a public repository directly.</small></button>
+  </div>
+  <div class="play-grid">
+    <section class="card chat-card"><div class="toolbar"><div><h3 style="margin:0">Ask your knowledge</h3><small id="source-label">{{ rows[0].cfg.display_name if rows else 'No source yet' }}</small></div><select id="source" onchange="updateSource()">{% for r in rows %}<option value="{{ r.cfg.source_id }}">{{ r.cfg.display_name or r.cfg.source_id }}</option>{% endfor %}</select></div><textarea id="question" rows="5" placeholder="Try: How does the retry policy work?"></textarea><div class="actions"><button onclick="ask()">Ask Knowledge Fabric</button><span id="mode" class="pill ok">LOCAL · NO API KEY</span></div><div id="answer" class="answer-box muted">Your answer will appear here with evidence and confidence.</div></section>
+    <aside class="card"><h3 style="margin-top:0">Pipeline</h3><div class="flow"><span>Question</span><i>↓</i><span>Hybrid RAG</span><i>↓</i><span>Agent tools</span><i>↓</i><span>Local / LLM</span><i>↓</i><span>Citations + confidence</span></div><hr><h4>Sources</h4><div id="evidence" class="muted">No query yet.</div></aside>
+  </div>
+</div>
+<script>
+function updateSource(){const s=document.getElementById('source');document.getElementById('source-label').textContent=s.options[s.selectedIndex]?.text||''}
+async function demo(){const r=await fetch('/quick-start/demo',{method:'POST'});const d=await r.json();if(!d.ok){alert(d.error);return} location.reload()}
+async function ask(){const q=document.getElementById('question').value.trim();if(!q)return;const answer=document.getElementById('answer');answer.textContent='Working…';const sid=document.getElementById('source').value;const r=await fetch('/api/playground/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_id:sid,question:q})});const d=await r.json();if(!r.ok){answer.textContent=d.error||'Query failed';return}answer.className='answer-box';answer.innerHTML='<h3>Answer</h3><p>'+escapeHtml(d.answer).replace(/\n/g,'<br>')+'</p><div class="pill '+(d.confidence?.label==='high'?'ok':d.confidence?.label==='medium'?'warn':'bad')+'">'+(d.confidence?.label||'unknown').toUpperCase()+' · '+Math.round((d.confidence?.overall||0)*100)+'%</div>';document.getElementById('evidence').innerHTML=(d.retrieved||[]).map(x=>'<div class="source"><b>'+escapeHtml(x.citation)+'</b><small>score '+x.score+'</small><div>'+escapeHtml(x.preview)+'</div></div>').join('')||'No evidence.';document.getElementById('mode').textContent=(d.trace||[]).find(x=>x.stage==='generation')?.provider==='mock'?'LOCAL · NO API KEY':'LLM · '+((d.trace||[]).find(x=>x.stage==='generation')?.provider||'provider').toUpperCase()}
+function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+</script>
+{% endblock %}

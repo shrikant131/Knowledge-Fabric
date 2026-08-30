@@ -1,0 +1,47 @@
+source_id: demo
+tenant_id: local
+display_name: Demo Knowledge
+connector_type: file
+connector_options:
+  root_path: ./sample_data
+trigger_type: scheduler
+poll_interval_seconds: 60
+embedder: local
+generator: mock
+llm_enabled: false
+llm_provider: bedrock
+bedrock_region: us-east-1
+bedrock_embed_model: amazon.titan-embed-text-v2:0
+bedrock_chat_model: anthropic.claude-3-5-sonnet-20241022-v2:0
+openai_chat_model: gpt-4.1-mini
+openai_api_key_env: OPENAI_API_KEY
+openai_base_url: https://api.openai.com/v1/chat/completions
+github_token_env: GITHUB_TOKEN
+index_dir: ./data
+top_k: 5
+max_tokens: 800
+enable_cache: true
+cache_similarity_threshold: 0.97
+enable_self_rag: true
+max_correction_rounds: 2
+min_lexical_hits: 1
+min_vector_similarity: 0.08
+symbol_match_weight: 3.0
+enable_reranker: true
+reranker_weight: 0.35
+enable_query_expansion: true
+max_context_chars: 18000
+confidence_threshold: 0.55
+max_agent_steps: 3
+agent_time_budget_seconds: 20
+max_tool_results: 100
+allowed_sensitivity:
+- public
+- internal
+public_access: true
+allowed_users: []
+allowed_groups: []
+max_upload_bytes: 26214400
+max_query_chars: 8000
+max_requests_per_minute: 60
+cache_namespace: default

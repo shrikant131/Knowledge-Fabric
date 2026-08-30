@@ -1,0 +1,12 @@
+source_id: local_files
+display_name: "Pilot Sample Data"
+connector_type: file
+connector_options:
+  root_path: ./sample_data
+trigger_type: scheduler
+poll_interval_seconds: 30
+embedder: local
+generator: mock
+index_dir: ./data
+top_k: 5
+max_tokens: 800

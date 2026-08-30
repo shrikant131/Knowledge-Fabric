@@ -1,0 +1,11 @@
+services:
+  knowledge-fabric:
+    build: .
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./data:/app/data
+      - ./connectors_registry:/app/connectors_registry
+      - ./sample_data:/app/sample_data
+    env_file:
+      - .env
