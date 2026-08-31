@@ -33,7 +33,7 @@ def _build_generator(cfg):
         return LocalGenerator(model_id=cfg.local_llm_model, base_url=cfg.local_llm_base_url, timeout=cfg.local_llm_timeout)
     if provider == "bedrock":
         from knowledge_fabric.generation.bedrock_generator import BedrockGenerator
-        return BedrockGenerator(model_id=cfg.bedrock_chat_model, region_name=cfg.bedrock_region)
+        return BedrockGenerator(model_id=cfg.bedrock_chat_model, region_name=cfg.bedrock_region, api_key_env=cfg.bedrock_api_key_env)
     if provider == "openai":
         from knowledge_fabric.generation.openai_generator import OpenAIGenerator
         return OpenAIGenerator(model_id=cfg.openai_chat_model, api_key_env=cfg.openai_api_key_env, base_url=cfg.openai_base_url)
@@ -50,7 +50,10 @@ class KnowledgeFabricPipeline:
     def ingest(self)->dict:
         all_items=list(self.connector.fetch()); seen=self.store.all_content_hashes(); changed=self.connector.detect_delta(all_items,seen); current_ids={i.item_id for i in all_items}; deleted=set(seen)-current_ids
         if deleted:self.store.remove_items(deleted)
-        if not changed:return {"items_scanned":len(all_items),"items_changed":0,"items_deleted":len(deleted),"chunks_ingested":0,"total_chunks":len(self.store.chunks)}
+        if not changed:
+            self.store.set_item_hashes({i.item_id:i.content_hash for i in all_items})
+            self.store.save()
+            return {"items_scanned":len(all_items),"items_changed":0,"items_deleted":len(deleted),"chunks_ingested":0,"total_chunks":len(self.store.chunks)}
         changed_ids={i.item_id for i in changed}; self.store.remove_items(changed_ids); changed_chunks=[]
         for item in changed:changed_chunks.extend(self.connector.chunk(self.connector.parse(item)))
         for c in changed_chunks:c.extra["tenant_id"]=self.cfg.tenant_id
@@ -59,10 +62,11 @@ class KnowledgeFabricPipeline:
             all_chunks=[]
             for item in all_items:all_chunks.extend(self.connector.chunk(self.connector.parse(item)))
             for c in all_chunks:c.extra["tenant_id"]=self.cfg.tenant_id
-            all_chunks=self.security.filter_chunks(all_chunks,Principal(user_id="ingest",tenant_id=self.cfg.tenant_id,authenticated=True)); self.embedder.fit([c.text for c in all_chunks] or ["empty knowledge base"]); vectors=self.embedder.embed([c.text for c in all_chunks]) if all_chunks else np.empty((0,self.embedder.dimension),dtype="float32"); self.store.replace_all(all_chunks,vectors); count=len(all_chunks)
+            all_chunks=self.security.filter_chunks(all_chunks,Principal(user_id="ingest",tenant_id=self.cfg.tenant_id,authenticated=True)); self.embedder.fit([c.text for c in all_chunks] or ["empty knowledge base"]); vectors=self.embedder.embed([c.text for c in all_chunks]) if all_chunks else np.empty((0,self.embedder.dimension),dtype="float32"); self.store.replace_all(all_chunks,vectors)
         else:
-            vectors=self.embedder.embed([c.text for c in changed_chunks]) if changed_chunks else np.empty((0,self.embedder.dimension),dtype="float32"); self.store.upsert(changed_chunks,vectors); count=len(changed_chunks)
-        self.store.save(); return {"items_scanned":len(all_items),"items_changed":len(changed),"items_deleted":len(deleted),"chunks_ingested":count,"total_chunks":len(self.store.chunks)}
+            vectors=self.embedder.embed([c.text for c in changed_chunks]) if changed_chunks else np.empty((0,self.embedder.dimension),dtype="float32"); self.store.upsert(changed_chunks,vectors)
+        self.store.set_item_hashes({i.item_id:i.content_hash for i in all_items}); self.store.save()
+        return {"items_scanned":len(all_items),"items_changed":len(changed),"items_deleted":len(deleted),"chunks_ingested":len(changed_chunks),"total_chunks":len(self.store.chunks)}
 
     def retrieve(self,question:str,top_k:int|None=None,principal:Principal|None=None)->list[RankedChunk]:
         top_k=top_k or self.cfg.top_k; principal=principal or Principal(); qv=self.embedder.embed_one(question); lexical,vector=self._raw_retrieve(question,qv,2,principal); allowed=self.security.allowed_chunk_ids(self.store.chunks,principal); symbol=symbol_match_results(question,[c for c in self.store.chunks if c.chunk_id in allowed],top_k=top_k*2); fused=reciprocal_rank_fusion([lexical,vector,symbol],top_k=max(top_k*3,top_k),weights=[1,1,self.cfg.symbol_match_weight]); return rerank(question,fused,top_k=top_k,weight=self.cfg.reranker_weight) if self.cfg.enable_reranker else fused[:top_k]
