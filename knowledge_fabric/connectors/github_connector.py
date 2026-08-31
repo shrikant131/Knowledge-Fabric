@@ -49,12 +49,14 @@ class GitHubConnector(SourceConnector):
             ext=os.path.splitext(path)[1].lower()
             if ext not in CODE_EXTENSIONS and ext not in DOC_EXTENSIONS: continue
             if int(node.get("size") or 0)>self.max_file_bytes: continue
-            blob=self._get(f"{self.base}/git/blobs/{node['sha']}")
+            blob_sha=node.get("sha")
+            if not blob_sha: continue
+            blob=self._get(f"{self.base}/git/blobs/{blob_sha}")
             if blob.get("encoding")!="base64": continue
             try: content=base64.b64decode(blob["content"]).decode("utf-8",errors="ignore")
             except Exception: continue
             yielded+=1
-            yield RawItem(source_id=self.source_id,item_id=path,content=content,content_type="code" if ext in CODE_EXTENSIONS else "doc",language=CODE_EXTENSIONS.get(ext) or DOC_EXTENSIONS.get(ext),extra={"repo":f"{self.owner}/{self.repo}","ref":ref,"commit":sha,"url":f"https://github.com/{self.owner}/{self.repo}/blob/{sha}/{path}"})
+            yield RawItem(source_id=self.source_id,item_id=path,content=content,content_type="code" if ext in CODE_EXTENSIONS else "doc",language=CODE_EXTENSIONS.get(ext) or DOC_EXTENSIONS.get(ext),source_hash=blob_sha,extra={"repo":f"{self.owner}/{self.repo}","ref":ref,"commit":sha,"blob_sha":blob_sha,"url":f"https://github.com/{self.owner}/{self.repo}/blob/{sha}/{path}"})
     def detect_delta(self,items,seen_hashes): return [item for item in items if seen_hashes.get(item.item_id)!=item.content_hash]
     def parse(self,item):
         sections=[(f"{s.kind}:{s.name}",s.text) for s in split_code_symbols(item.content,item.language or "")] if item.content_type=="code" else split_doc_sections(item.content)
