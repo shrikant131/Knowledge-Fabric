@@ -1,9 +1,4 @@
-"""Persistent local vector store with safe UTF-8 JSON + NumPy serialization.
-
-No pickle is used for persisted application state. FAISS remains an optional
-in-memory accelerator; the portable source of truth is JSON metadata + NPZ
-vectors.
-"""
+"""Persistent local vector store with safe UTF-8 JSON + NumPy serialization."""
 from __future__ import annotations
 import json
 from pathlib import Path
@@ -24,6 +19,7 @@ class FaissVectorStore:
         self.vector_path = self.index_path.with_suffix(".vectors.npz")
         self.index = None
         self.chunks: list[Chunk] = []
+        self.item_hashes: dict[str, str] = {}
         self._vectors = np.empty((0, dimension), dtype="float32")
         self._id_to_pos: dict[str, int] = {}
         if self.meta_path.exists() and self.vector_path.exists():
@@ -56,7 +52,12 @@ class FaissVectorStore:
         keep = [(c, self._vector_at(i)) for i, c in enumerate(self.chunks) if c.item_id not in ids]
         self.chunks = [x[0] for x in keep]
         self._vectors = np.vstack([x[1] for x in keep]).astype("float32") if keep else np.empty((0, self.dimension), dtype="float32")
+        for item_id in ids:
+            self.item_hashes.pop(item_id, None)
         self._rebuild_index()
+
+    def set_item_hashes(self, hashes):
+        self.item_hashes = dict(hashes or {})
 
     def _vector_at(self, pos):
         return self._vectors[pos]
@@ -98,29 +99,26 @@ class FaissVectorStore:
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
         payload = []
         for c in self.chunks:
-            payload.append({
-                "chunk_id": c.chunk_id, "source_id": c.source_id, "item_id": c.item_id,
-                "text": c.text, "symbol": c.symbol, "language": c.language,
-                "content_hash": c.content_hash, "sensitivity": c.sensitivity, "extra": c.extra,
-            })
+            payload.append({"chunk_id": c.chunk_id, "source_id": c.source_id, "item_id": c.item_id, "text": c.text, "symbol": c.symbol, "language": c.language, "content_hash": c.content_hash, "sensitivity": c.sensitivity, "extra": c.extra})
         tmp_meta = self.meta_path.with_suffix(".tmp")
         tmp_vec = self.vector_path.with_suffix(".tmp.npz")
-        # Explicit UTF-8 is required on Windows, where the process default is
-        # commonly cp1252 and GitHub repositories frequently contain Unicode.
-        tmp_meta.write_text(
-            json.dumps({"version": 2, "dimension": self.dimension, "chunks": payload}, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        tmp_meta.write_text(json.dumps({"version": 3, "dimension": self.dimension, "item_hashes": self.item_hashes, "chunks": payload}, ensure_ascii=False), encoding="utf-8")
         np.savez_compressed(tmp_vec, vectors=self._vectors)
         tmp_meta.replace(self.meta_path)
         tmp_vec.replace(self.vector_path)
-        self.index_path.write_text("Knowledge Fabric vector index v2\n", encoding="utf-8")
+        self.index_path.write_text("Knowledge Fabric vector index v3\n", encoding="utf-8")
 
     def load(self):
         meta = json.loads(self.meta_path.read_text(encoding="utf-8"))
         if int(meta.get("dimension", self.dimension)) != self.dimension:
             raise ValueError("Vector index dimension does not match configured embedder")
+        self.item_hashes = {str(k): str(v) for k, v in (meta.get("item_hashes") or {}).items()}
         self.chunks = [Chunk(**x) for x in meta.get("chunks", [])]
+        if not self.item_hashes:
+            for chunk in self.chunks:
+                h = chunk.extra.get("parent_content_hash")
+                if h:
+                    self.item_hashes[chunk.item_id] = h
         with np.load(self.vector_path, allow_pickle=False) as data:
             self._vectors = np.asarray(data["vectors"], dtype="float32")
         if len(self.chunks) != len(self._vectors):
@@ -128,12 +126,7 @@ class FaissVectorStore:
         self._rebuild_index()
 
     def all_content_hashes(self):
-        out = {}
-        for chunk in self.chunks:
-            h = chunk.extra.get("parent_content_hash")
-            if h:
-                out[chunk.item_id] = h
-        return out
+        return dict(self.item_hashes)
 
     def chunk_hashes_by_id(self):
         return {c.chunk_id: c.content_hash for c in self.chunks}
