@@ -1,6 +1,5 @@
 """Amazon Bedrock generation backend."""
 from __future__ import annotations
-import json
 import os
 
 DEFAULT_MODEL_ID = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -55,30 +54,24 @@ class BedrockGenerator:
             return False
 
     def generate(self, system_prompt, user_prompt, max_tokens=800):
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": max_tokens,
-            "system": system_prompt,
-            "messages": [{"role": "user", "content": user_prompt}],
-        })
         try:
-            response = self.client.invoke_model(
+            response = self.client.converse(
                 modelId=self.model_id,
-                body=body,
-                accept="application/json",
-                contentType="application/json",
+                system=[{"text": system_prompt}],
+                messages=[{"role": "user", "content": [{"text": user_prompt}]}],
+                inferenceConfig={"maxTokens": max_tokens},
             )
-            payload = json.loads(response["body"].read())
         except Exception as exc:
             self.last_error = str(exc)
             raise
-        usage = payload.get("usage") or {}
+        usage = response.get("usage") or {}
         self.last_usage = {
-            "input_tokens": int(usage.get("input_tokens", 0) or 0),
-            "output_tokens": int(usage.get("output_tokens", 0) or 0),
+            "input_tokens": int(usage.get("inputTokens", 0) or 0),
+            "output_tokens": int(usage.get("outputTokens", 0) or 0),
         }
-        content = payload.get("content") or []
-        if not content or not content[0].get("text"):
+        content = (response.get("output") or {}).get("message", {}).get("content") or []
+        text = next((part.get("text") for part in content if part.get("text")), None)
+        if not text:
             raise RuntimeError("Bedrock returned an empty response")
         self.last_error = None
-        return content[0]["text"]
+        return text
