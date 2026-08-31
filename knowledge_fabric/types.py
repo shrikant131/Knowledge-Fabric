@@ -15,15 +15,21 @@ from typing import Any, Optional
 class RawItem:
     """A single unit fetched from a source before parsing (e.g. one file)."""
     source_id: str
-    item_id: str          # stable id within the source, e.g. relative file path
+    item_id: str
     content: str
-    content_type: str     # "code" | "doc"
-    language: Optional[str] = None   # "python" | "java" | "markdown" | "text" | ...
+    content_type: str
+    language: Optional[str] = None
     extra: dict[str, Any] = field(default_factory=dict)
+    source_hash: Optional[str] = None
 
     @property
     def content_hash(self) -> str:
-        return hashlib.sha256(self.content.encode("utf-8")).hexdigest()
+        """Stable source version when a connector can provide one.
+
+        GitHub can provide the Git blob SHA without downloading unchanged file
+        contents. Other connectors continue to use a SHA-256 of the content.
+        """
+        return self.source_hash or hashlib.sha256(self.content.encode("utf-8")).hexdigest()
 
 
 @dataclass
@@ -33,7 +39,6 @@ class ParsedDocument:
     item_id: str
     content_type: str
     language: Optional[str]
-    # list of (heading_or_symbol, text) structural units, in order
     sections: list[tuple[str, str]]
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -45,7 +50,7 @@ class Chunk:
     source_id: str
     item_id: str
     text: str
-    symbol: Optional[str]        # function/class name or section heading
+    symbol: Optional[str]
     language: Optional[str]
     content_hash: str
     sensitivity: str = "internal"
@@ -60,7 +65,7 @@ class Chunk:
 
 @dataclass
 class RankedChunk:
-    """A chunk with a retrieval score, produced by lexical/vector/fused search."""
+    """A chunk with a retrieval score, produced by retrieval."""
     chunk: Chunk
     score: float
 
