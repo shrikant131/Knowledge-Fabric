@@ -51,13 +51,15 @@ class KnowledgeFabricPipeline:
         all_items=list(self.connector.fetch()); seen=self.store.all_content_hashes(); changed=self.connector.detect_delta(all_items,seen); current_ids={i.item_id for i in all_items}; deleted=set(seen)-current_ids
         if deleted:self.store.remove_items(deleted)
         if not changed:
-            self.store.set_item_hashes({i.item_id:i.content_hash for i in all_items})
-            self.store.save()
+            self.store.set_item_hashes({i.item_id:i.content_hash for i in all_items}); self.store.save()
             return {"items_scanned":len(all_items),"items_changed":0,"items_deleted":len(deleted),"chunks_ingested":0,"total_chunks":len(self.store.chunks)}
         changed_ids={i.item_id for i in changed}; self.store.remove_items(changed_ids); changed_chunks=[]
         for item in changed:changed_chunks.extend(self.connector.chunk(self.connector.parse(item)))
         for c in changed_chunks:c.extra["tenant_id"]=self.cfg.tenant_id
         changed_chunks=self.security.filter_chunks(changed_chunks,Principal(user_id="ingest",tenant_id=self.cfg.tenant_id,authenticated=True))
+        # TF-IDF has a corpus-dependent vocabulary/IDF, so a change requires a
+        # full vector rebuild. Crucially, this happens only when delta detection
+        # found a change; a no-op polling cycle never reparses or embeds content.
         if hasattr(self.embedder,"fit"):
             all_chunks=[]
             for item in all_items:all_chunks.extend(self.connector.chunk(self.connector.parse(item)))
@@ -70,7 +72,6 @@ class KnowledgeFabricPipeline:
 
     def retrieve(self,question:str,top_k:int|None=None,principal:Principal|None=None)->list[RankedChunk]:
         top_k=top_k or self.cfg.top_k; principal=principal or Principal(); qv=self.embedder.embed_one(question); lexical,vector=self._raw_retrieve(question,qv,2,principal); allowed=self.security.allowed_chunk_ids(self.store.chunks,principal); symbol=symbol_match_results(question,[c for c in self.store.chunks if c.chunk_id in allowed],top_k=top_k*2); fused=reciprocal_rank_fusion([lexical,vector,symbol],top_k=max(top_k*3,top_k),weights=[1,1,self.cfg.symbol_match_weight]); return rerank(question,fused,top_k=top_k,weight=self.cfg.reranker_weight) if self.cfg.enable_reranker else fused[:top_k]
-
     def query(self,question:str,principal:Principal|None=None)->dict:
         question=question.strip()
         if not question:raise ValueError("Question cannot be empty")
@@ -88,7 +89,6 @@ class KnowledgeFabricPipeline:
         if self.cfg.enable_cache and fused and not low and confidence.overall>=self.cfg.confidence_threshold:self.cache.write(qv,CacheEntry(query=question,answer=answer,retrieved=retrieved,chunk_hashes={r.chunk.chunk_id:r.chunk.content_hash for r in fused},namespace=self.cfg.cache_namespace,config_fingerprint=self.config_fingerprint))
         trace=[{"stage":"route","intent":intent.label},{"stage":"retrieve","hits":len(fused),"corrective_rounds":rounds},{"stage":"generation","provider":self.cfg.llm_provider if self.cfg.effective_llm_enabled() else "deterministic"},{"stage":"confidence","score":confidence.overall,"label":confidence.label}]; self._log(question,intent.label,retrieved,answer,False,rounds)
         return {"query":question,"intent":intent.label,"retrieved":retrieved,"answer":answer,"cache_hit":False,"corrective_rounds":rounds,"low_confidence":low,"confidence":confidence.__dict__,"trace":trace,"usage":usage,"model":getattr(self.generator,"model_id",None)}
-
     def _retrieve_with_correction(self,question,qv,principal):
         current=question; rounds=0; plan=KnowledgeFabricAgent(self,principal).plan(question) if self.cfg.enable_query_expansion else [question]
         while rounds<=self.cfg.max_correction_rounds:
@@ -99,7 +99,6 @@ class KnowledgeFabricPipeline:
             if not self.cfg.enable_self_rag or self._is_sufficient(lexical_all,vector_all,symbol_all):return fused,rounds,False
             rounds+=1; current=f"{question} relevant implementation policy behavior failure dependencies"
         return fused,rounds,True
-
     def _raw_retrieve(self,question,qv,top_k_multiplier=2,principal=None):
         allowed=self.security.allowed_chunk_ids(self.store.chunks,principal or Principal()); bm25=Bm25Index(self.store.chunks); return bm25.search(question,self.cfg.top_k*top_k_multiplier,allowed),self.store.search(qv,self.cfg.top_k*top_k_multiplier,allowed)
     def _is_sufficient(self,lexical,vector,symbol=()):return len(lexical)>=self.cfg.min_lexical_hits or (vector and vector[0].score>=self.cfg.min_vector_similarity) or bool(symbol)
